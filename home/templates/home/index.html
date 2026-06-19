@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOCTURNE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Montserrat:wght@200;300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --gold:     #c9a84c;
+      --gold-lt:  #e8d5a3;
+      --gold-gl:  rgba(201,168,76,0.22);
+      --bg:       #05050e;
+      --text:     #f0e6d3;
+      --dim:      rgba(240,230,211,0.35);
+    }
+
+    html, body { height: 100%; overflow: hidden; background: var(--bg); }
+
+    /* ── Aurora background ─────────────────── */
+    #bg {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+    }
+
+    /* ── Layout ────────────────────────────── */
+    .app {
+      position: relative; z-index: 1;
+      height: 100vh;
+      display: grid; place-items: center;
+    }
+
+    .player {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 2.2rem;
+    }
+
+    /* ── Vinyl ─────────────────────────────── */
+    .deck {
+      position: relative;
+      width: 250px; height: 250px;
+    }
+
+    /* Bass-reactive glow ring */
+    .glow-ring {
+      position: absolute; inset: -18px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--gold-gl) 0%, transparent 68%);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      pointer-events: none;
+    }
+
+    .vinyl {
+      width: 250px; height: 250px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at center,
+          #d4aa50 0%, #c9a84c 9%,
+          #8b6914 11.5%, #3a2a09 13.5%,
+          transparent 14.5%
+        ),
+        repeating-radial-gradient(circle at center,
+          #0c0c0c 0px, #191919 2px, #090909 3.5px, #151515 5px, #0c0c0c 6px
+        );
+      box-shadow:
+        0 0 0 1px rgba(201,168,76,0.12),
+        0 10px 50px rgba(0,0,0,0.85),
+        inset 0 0 30px rgba(0,0,0,0.6);
+      animation: spin 7s linear infinite;
+      animation-play-state: paused;
+      position: relative;
+    }
+    .vinyl.playing { animation-play-state: running; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Tonearm */
+    .arm {
+      position: absolute;
+      top: -8px; right: -38px;
+      width: 130px; height: 130px;
+      transform-origin: 88% 7%;
+      transform: rotate(14deg);
+      transition: transform 1.6s cubic-bezier(.4,0,.2,1);
+      pointer-events: none;
+    }
+    .arm.playing { transform: rotate(-4deg); }
+
+    /* ── Title ─────────────────────────────── */
+    .title-area { text-align: center; }
+
+    h1 {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 3.6rem; font-weight: 300;
+      letter-spacing: 0.55em;
+      color: var(--gold-lt);
+      text-shadow: 0 0 50px rgba(201,168,76,0.35);
+      line-height: 1;
+    }
+
+    .sub {
+      margin-top: 0.6rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.58rem; font-weight: 300;
+      letter-spacing: 0.62em;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+
+    .chord-tag {
+      display: inline-block;
+      margin-top: 0.85rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.65rem; font-weight: 400;
+      letter-spacing: 0.35em;
+      color: var(--gold);
+      text-transform: uppercase;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+    .chord-tag.show { opacity: 1; }
+
+    /* ── Visualizer ─────────────────────────── */
+    #viz { display: block; width: 380px; height: 68px; }
+
+    /* ── Controls ──────────────────────────── */
+    .controls {
+      display: flex; align-items: center; gap: 2rem;
+    }
+
+    .play-btn {
+      width: 70px; height: 70px;
+      border-radius: 50%;
+      border: 1.5px solid var(--gold);
+      background: transparent;
+      color: var(--gold);
+      cursor: pointer; outline: none;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    .play-btn::before {
+      content: '';
+      position: absolute; inset: -7px;
+      border-radius: 50%;
+      border: 1px solid rgba(201,168,76,0.15);
+      transition: all 0.3s ease;
+    }
+    .play-btn:hover {
+      background: rgba(201,168,76,0.08);
+      box-shadow: 0 0 28px rgba(201,168,76,0.25);
+    }
+    .play-btn:hover::before { inset: -12px; border-color: rgba(201,168,76,0.25); }
+
+    .play-icon { font-size: 1.4rem; padding-left: 3px; line-height: 1; }
+    .play-icon.pause { padding-left: 0; }
+
+    /* Volume */
+    .vol-wrap { display: flex; align-items: center; gap: 0.55rem; }
+    .vol-ico { font-size: 0.9rem; color: var(--dim); }
+
+    input[type=range].vol {
+      -webkit-appearance: none;
+      width: 76px; height: 1px;
+      background: rgba(201,168,76,0.22);
+      cursor: pointer; outline: none;
+    }
+    input[type=range].vol::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 6px rgba(201,168,76,0.6);
+    }
+
+    /* ── Progress ───────────────────────────── */
+    .prog-wrap { width: 340px; }
+    .prog-track {
+      width: 100%; height: 1px;
+      background: rgba(201,168,76,0.15);
+      position: relative; border-radius: 1px;
+    }
+    .prog-fill {
+      height: 100%;
+      background: linear-gradient(to right, var(--gold), var(--gold-lt));
+      border-radius: 1px;
+      width: 0%;
+      transition: width 0.25s linear;
+    }
+    .prog-dot {
+      position: absolute; top: -4px; left: 0%;
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 8px rgba(201,168,76,0.75);
+      transform: translateX(-50%);
+      transition: left 0.25s linear;
+    }
+
+    /* ── Footer tag ─────────────────────────── */
+    .ftag {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.52rem; letter-spacing: 0.52em;
+      color: rgba(240,230,211,0.12);
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+
+<div class="app">
+  <div class="player">
+
+    <!-- Deck -->
+    <div class="deck">
+      <div class="glow-ring" id="glowRing"></div>
+      <div class="vinyl"     id="vinyl"></div>
+
+      <!-- Tonearm SVG -->
+      <svg class="arm" id="arm" viewBox="0 0 110 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="94" cy="9" r="5"  fill="#c9a84c" opacity="0.85"/>
+        <circle cx="94" cy="9" r="9"  stroke="#c9a84c" stroke-width="1" opacity="0.25"/>
+        <line   x1="94" y1="9"  x2="58" y2="88" stroke="#c9a84c" stroke-width="2.5" stroke-linecap="round"/>
+        <line   x1="58" y1="88" x2="50" y2="97" stroke="#c9a84c" stroke-width="2"   stroke-linecap="round"/>
+        <rect   x="44" y="94" width="12" height="5" rx="1" fill="#c9a84c" opacity="0.7"/>
+      </svg>
+    </div>
+
+    <!-- Title -->
+    <div class="title-area">
+      <h1>NOCTURNE</h1>
+      <p class="sub">Generative Ambient Jazz</p>
+      <span class="chord-tag" id="chordTag">Cmaj7</span>
+    </div>
+
+    <!-- Visualizer -->
+    <canvas id="viz" width="380" height="68"></canvas>
+
+    <!-- Controls -->
+    <div class="controls">
+      <div class="vol-wrap">
+        <span class="vol-ico">&#9834;</span>
+        <input type="range" class="vol" id="vol" min="0" max="100" value="72">
+      </div>
+
+      <button class="play-btn" id="playBtn">
+        <span class="play-icon" id="playIcon">&#9654;</span>
+      </button>
+
+      <div style="width:110px"></div>
+    </div>
+
+    <!-- Progress -->
+    <div class="prog-wrap">
+      <div class="prog-track">
+        <div class="prog-fill" id="progFill"></div>
+        <div class="prog-dot"  id="progDot"></div>
+      </div>
+    </div>
+
+    <p class="ftag">Generative &middot; Infinite &middot; Original</p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  AURORA BACKGROUND
+// ═══════════════════════════════════════════════════
+const bgCv  = document.getElementById('bg');
+const bgCtx = bgCv.getContext('2d');
+let bgT = 0;
+let stars = [];
+
+function resizeBg() {
+  bgCv.width  = window.innerWidth;
+  bgCv.height = window.innerHeight;
+}
+
+function initStars() {
+  stars = Array.from({ length: 180 }, () => ({
+    x: Math.random(),
+    y: Math.random() * 0.7,
+    r: Math.random() * 1.2 + 0.2,
+    ph: Math.random() * Math.PI * 2,
+    spd: 0.4 + Math.random() * 1.2,
+  }));
+}
+
+const LAYERS = [
+  { rgb: [14, 4, 52],   a: 0.38, spd: 0.85, amp: 140, y: 0.55 },
+  { rgb: [38, 8, 95],   a: 0.20, spd: 0.62, amp: 85,  y: 0.44 },
+  { rgb: [75, 28, 12],  a: 0.13, spd: 1.15, amp: 68,  y: 0.65 },
+  { rgb: [201,168,76],  a: 0.05, spd: 0.42, amp: 115, y: 0.50 },
+];
+
+function drawBg() {
+  requestAnimationFrame(drawBg);
+  bgT += 0.0018;
+  const W = bgCv.width, H = bgCv.height;
+  bgCtx.fillStyle = '#05050e';
+  bgCtx.fillRect(0, 0, W, H);
+
+  LAYERS.forEach(l => {
+    bgCtx.beginPath();
+    bgCtx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 5) {
+      const cy = H * l.y;
+      const y  = cy
+        + Math.sin(x * 0.0022 + bgT * l.spd)         * l.amp
+        + Math.sin(x * 0.0058 + bgT * l.spd * 1.35)  * l.amp * 0.42
+        + Math.sin(x * 0.0115 + bgT * l.spd * 0.72)  * l.amp * 0.18;
+      bgCtx.lineTo(x, y);
+    }
+    bgCtx.lineTo(W, H);
+    bgCtx.closePath();
+    bgCtx.fillStyle = `rgba(${l.rgb},${l.a})`;
+    bgCtx.fill();
+  });
+
+  stars.forEach(s => {
+    s.ph += s.spd * 0.007;
+    const a = Math.max(0, 0.15 + Math.sin(s.ph) * 0.28);
+    bgCtx.beginPath();
+    bgCtx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+    bgCtx.fillStyle = `rgba(232,213,163,${a})`;
+    bgCtx.fill();
+  });
+}
+
+resizeBg();
+initStars();
+window.addEventListener('resize', resizeBg);
+drawBg();
+
+// ═══════════════════════════════════════════════════
+//  AUDIO ENGINE
+// ═══════════════════════════════════════════════════
+let AC = null, master = null, analyser = null;
+let playing = false, schedTimer = null;
+let nextBarTime = 0, chordIdx = 0;
+
+const BPM  = 66;
+const BEAT = 60 / BPM;
+const BAR  = BEAT * 4;
+
+// Note map (freq in Hz)
+const N = {
+  C2:65.41,D2:73.42,E2:82.41,F2:87.31,G2:98.00,A2:110.00,B2:123.47,
+  C3:130.81,D3:146.83,E3:164.81,F3:174.61,G3:196.00,A3:220.00,B3:246.94,
+  C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.00,A4:440.00,B4:493.88,
+  C5:523.25,D5:587.33,E5:659.26,F5:698.46,G5:783.99,A5:880.00,
+  Bb4:466.16,Ab4:415.30,F3:174.61,Bb3:233.08,
+};
+
+const CHORDS = [
+  { name:'Cmaj7', bass:N.C2, pads:[N.C3,N.E3,N.G3,N.B3],
+    mel:[N.C4,N.E4,N.G4,N.B4,N.D5,N.E5,N.C5,N.G4] },
+  { name:'Am7',   bass:N.A2, pads:[N.A2,N.C3,N.E3,N.G3],
+    mel:[N.A4,N.C5,N.E5,N.G4,N.B4,N.A4,N.G4,N.E4] },
+  { name:'Fmaj7', bass:N.F2, pads:[N.F2,N.A2,N.C3,N.E3],
+    mel:[N.F4,N.A4,N.C5,N.E5,N.D5,N.C5,N.A4,N.F4] },
+  { name:'G7',    bass:N.G2, pads:[N.G2,N.B2,N.D3,N.F3],
+    mel:[N.G4,N.B4,N.D5,N.F4,N.A4,N.G4,N.B4,N.D5] },
+];
+
+const CYCLE = BAR * CHORDS.length;
+const DUR   = [BEAT*0.5, BEAT*0.5, BEAT*0.75, BEAT, BEAT*1.25, BEAT*1.5];
+
+function buildReverb() {
+  const cv  = AC.createConvolver();
+  const len = Math.floor(AC.sampleRate * 3.2);
+  const buf = AC.createBuffer(2, len, AC.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < len; i++)
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.8);
+  }
+  cv.buffer = buf;
+  return cv;
+}
+
+function initAudio() {
+  AC      = new (window.AudioContext || window.webkitAudioContext)();
+  master  = AC.createGain();
+  master.gain.value = 0;
+  analyser = AC.createAnalyser();
+  analyser.fftSize = 512;
+  analyser.smoothingTimeConstant = 0.83;
+
+  const reverb = buildReverb();
+  const dry = AC.createGain(); dry.gain.value = 0.74;
+  const wet = AC.createGain(); wet.gain.value = 0.32;
+
+  master.connect(dry);    dry.connect(analyser);
+  master.connect(reverb); reverb.connect(wet); wet.connect(analyser);
+  analyser.connect(AC.destination);
+}
+
+// Piano — triangle wave + harmonics + ADSR
+function piano(freq, t, dur, vol = 0.42) {
+  const env = AC.createGain();
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(vol, t + 0.012);
+  env.gain.exponentialRampToValueAtTime(vol * 0.52, t + 0.09);
+  env.gain.setValueAtTime(vol * 0.38, t + dur - 0.04);
+  env.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.28);
+  env.connect(master);
+
+  [[1, 1],[2, 0.38],[3, 0.18],[4, 0.07],[5, 0.03]].forEach(([h, v]) => {
+    const o = AC.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = freq * h;
+    const g = AC.createGain(); g.gain.value = v;
+    o.connect(g); g.connect(env);
+    o.start(t); o.stop(t + dur + 0.35);
+  });
+}
+
+// Pads — detuned sines with slow envelope
+function pad(freq, t, dur, vol = 0.1) {
+  [freq, freq * 1.005, freq * 0.996].forEach((f, i) => {
+    const o   = AC.createOscillator();
+    o.type    = 'sine';
+    o.frequency.value = f;
+    const flt = AC.createBiquadFilter();
+    flt.type  = 'lowpass'; flt.frequency.value = 750; flt.Q.value = 0.9;
+    const env = AC.createGain();
+    const v   = vol * [1, 0.6, 0.4][i];
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(v, t + 1.4);
+    env.gain.setValueAtTime(v * 0.85, t + dur - 1.1);
+    env.gain.linearRampToValueAtTime(0, t + dur + 0.2);
+    o.connect(flt); flt.connect(env); env.connect(master);
+    o.start(t); o.stop(t + dur + 0.4);
+  });
+}
+
+// Bass — filtered triangle, plucked feel
+function bass(freq, t, dur, vol = 0.48) {
+  const env = AC.createGain();
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(vol, t + 0.04);
+  env.gain.exponentialRampToValueAtTime(vol * 0.62, t + 0.22);
+  env.gain.setValueAtTime(vol * 0.45, t + dur - 0.05);
+  env.gain.linearRampToValueAtTime(0, t + dur + 0.05);
+
+  const flt = AC.createBiquadFilter();
+  flt.type  = 'lowpass'; flt.frequency.value = 310; flt.Q.value = 0.5;
+  env.connect(master);
+
+  [[1,'triangle',1],[2,'sine',0.3]].forEach(([h, type, v]) => {
+    const o = AC.createOscillator();
+    o.type  = type; o.frequency.value = freq * h;
+    const g = AC.createGain(); g.gain.value = v;
+    o.connect(g); g.connect(flt); flt.connect(env);
+    o.start(t); o.stop(t + dur + 0.1);
+  });
+}
+
+// Schedule one bar of jazz
+function scheduleBar(t) {
+  const chord = CHORDS[chordIdx % CHORDS.length];
+
+  // Show chord name when bar hits
+  const delay = Math.max(0, (t - AC.currentTime) * 1000 - 80);
+  setTimeout(() => {
+    const el = document.getElementById('chordTag');
+    el.textContent = chord.name;
+    el.classList.add('show');
+  }, delay);
+
+  // Pads
+  chord.pads.forEach(f => pad(f, t, BAR + 0.6));
+
+  // Bass on beats 1 & 3
+  bass(chord.bass, t,            BEAT * 1.75, 0.44 + Math.random() * 0.1);
+  bass(chord.bass, t + BEAT * 2, BEAT * 1.75, 0.36 + Math.random() * 0.1);
+
+  // Melody — stepwise walk through chord tones
+  const mel = chord.mel;
+  let mi = Math.floor(Math.random() * mel.length);
+  let mt = t + (Math.random() < 0.35 ? BEAT * 0.5 : 0); // optional pickup
+
+  while (mt < t + BAR - BEAT * 0.4) {
+    const step = Math.random() < 0.68
+      ? (Math.random() < 0.52 ? 1 : -1)
+      : (Math.floor(Math.random() * 5) - 2);
+    mi = Math.max(0, Math.min(mel.length - 1, mi + step));
+    const d   = DUR[Math.floor(Math.random() * DUR.length)];
+    const sw  = (Math.random() - 0.5) * 0.035; // swing/humanize
+    if (Math.random() > 0.16)
+      piano(mel[mi], mt + sw, d, 0.18 + Math.random() * 0.22);
+    mt += d + (Math.random() < 0.18 ? BEAT * 0.25 : 0); // occasional gap
+  }
+
+  chordIdx++;
+}
+
+function scheduler() {
+  while (nextBarTime < AC.currentTime + 0.45) {
+    scheduleBar(nextBarTime);
+    nextBarTime += BAR;
+  }
+}
+
+function startMusic() {
+  if (!AC) initAudio();
+  if (AC.state === 'suspended') AC.resume();
+  nextBarTime = AC.currentTime + 0.08;
+  chordIdx    = 0;
+  schedTimer  = setInterval(scheduler, 100);
+  const vol   = parseInt(document.getElementById('vol').value) / 100 * 0.85;
+  master.gain.cancelScheduledValues(AC.currentTime);
+  master.gain.setValueAtTime(0, AC.currentTime);
+  master.gain.linearRampToValueAtTime(vol, AC.currentTime + 1.6);
+}
+
+function stopMusic() {
+  clearInterval(schedTimer);
+  master.gain.linearRampToValueAtTime(0, AC.currentTime + 0.8);
+  document.getElementById('chordTag').classList.remove('show');
+}
+
+// ═══════════════════════════════════════════════════
+//  VISUALIZER
+// ═══════════════════════════════════════════════════
+const vizCv  = document.getElementById('viz');
+const vizCtx = vizCv.getContext('2d');
+const W = vizCv.width, VH = vizCv.height;
+
+function drawViz() {
+  requestAnimationFrame(drawViz);
+  vizCtx.clearRect(0, 0, W, VH);
+
+  if (!analyser || !playing) {
+    // Idle sine pulse
+    const t  = Date.now() / 1000;
+    const cy = VH / 2;
+    vizCtx.beginPath();
+    for (let x = 0; x < W; x++) {
+      const y = cy + Math.sin(x * 0.055 + t * 1.1) * 5 * Math.abs(Math.sin(t * 0.4));
+      x === 0 ? vizCtx.moveTo(x, y) : vizCtx.lineTo(x, y);
+    }
+    vizCtx.strokeStyle = 'rgba(201,168,76,0.18)';
+    vizCtx.lineWidth = 1.2;
+    vizCtx.stroke();
+    return;
+  }
+
+  const buf  = analyser.frequencyBinCount;
+  const data = new Uint8Array(buf);
+  analyser.getByteFrequencyData(data);
+
+  const useN = Math.min(buf, 96);
+  const bw   = W / useN;
+
+  for (let i = 0; i < useN; i++) {
+    const v  = data[i] / 255;
+    const bh = v * VH;
+    const x  = i * bw;
+    const gr = vizCtx.createLinearGradient(0, VH, 0, VH - bh);
+    gr.addColorStop(0,   `rgba(201,168,76,${0.55 + v * 0.45})`);
+    gr.addColorStop(0.5, `rgba(220,190,120,${0.3  + v * 0.3})`);
+    gr.addColorStop(1,   `rgba(255,240,200,${0.08 + v * 0.15})`);
+    vizCtx.fillStyle = gr;
+    vizCtx.fillRect(x, VH - bh, Math.max(1, bw - 1), bh);
+  }
+}
+drawViz();
+
+// ═══════════════════════════════════════════════════
+//  GLOW — bass-reactive
+// ═══════════════════════════════════════════════════
+const glowRing = document.getElementById('glowRing');
+
+function updateGlow() {
+  requestAnimationFrame(updateGlow);
+  if (!analyser || !playing) { glowRing.style.opacity = 0; return; }
+  const d = new Uint8Array(4);
+  analyser.getByteFrequencyData(d);
+  const energy = (d[1] + d[2] + d[3]) / (3 * 255);
+  glowRing.style.opacity  = (0.25 + energy * 0.85).toString();
+  glowRing.style.transform = `scale(${1 + energy * 0.18})`;
+}
+updateGlow();
+
+// ═══════════════════════════════════════════════════
+//  PROGRESS
+// ═══════════════════════════════════════════════════
+function updateProg() {
+  requestAnimationFrame(updateProg);
+  if (!AC || !playing) return;
+  const pct = ((AC.currentTime % CYCLE) / CYCLE) * 100;
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('progDot').style.left   = pct + '%';
+}
+updateProg();
+
+// ═══════════════════════════════════════════════════
+//  UI
+// ═══════════════════════════════════════════════════
+const playBtn  = document.getElementById('playBtn');
+const playIcon = document.getElementById('playIcon');
+const vinyl    = document.getElementById('vinyl');
+const arm      = document.getElementById('arm');
+
+playBtn.addEventListener('click', () => {
+  playing = !playing;
+  if (playing) {
+    startMusic();
+    playIcon.innerHTML  = '&#9646;&#9646;';
+    playIcon.className  = 'play-icon pause';
+    vinyl.classList.add('playing');
+    arm.classList.add('playing');
+  } else {
+    stopMusic();
+    playIcon.innerHTML  = '&#9654;';
+    playIcon.className  = 'play-icon';
+    vinyl.classList.remove('playing');
+    arm.classList.remove('playing');
+  }
+});
+
+document.getElementById('vol').addEventListener('input', function () {
+  if (master) {
+    const v = parseInt(this.value) / 100 * 0.85;
+    master.gain.setTargetAtTime(v, AC.currentTime, 0.1);
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target === document.body) {
+    e.preventDefault();
+    playBtn.click();
+  }
+});
+</script>
+</body>
+</html>
