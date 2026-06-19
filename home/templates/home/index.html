@@ -19,7 +19,7 @@
       --dim:      rgba(240,230,211,0.35);
     }
 
-    html, body { height: 100%; overflow: hidden; background: var(--bg); }
+    html, body { height: 100%; overflow-y: auto; background: var(--bg); }
 
     /* ── Aurora background ─────────────────── */
     #bg {
@@ -210,6 +210,85 @@
       color: rgba(240,230,211,0.12);
       text-transform: uppercase;
     }
+
+    /* ── YouTube Section ────────────────────── */
+    .yt-section {
+      position: relative; z-index: 1;
+      max-width: 780px;
+      margin: 0 auto 80px;
+      padding: 0 24px;
+    }
+
+    .yt-label {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.58rem; font-weight: 300;
+      letter-spacing: 0.55em;
+      color: var(--dim);
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+
+    .yt-input-row {
+      display: flex; gap: 12px;
+    }
+
+    .yt-input {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 10px;
+      padding: 12px 18px;
+      color: var(--text);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.82rem;
+      outline: none;
+      transition: border-color 0.25s;
+    }
+    .yt-input::placeholder { color: var(--dim); }
+    .yt-input:focus { border-color: rgba(201,168,76,0.6); }
+
+    .yt-btn {
+      padding: 12px 24px;
+      border-radius: 10px;
+      border: 1.5px solid var(--gold);
+      background: transparent;
+      color: var(--gold);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.78rem; letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.25s;
+      white-space: nowrap;
+    }
+    .yt-btn:hover { background: rgba(201,168,76,0.1); box-shadow: 0 0 18px rgba(201,168,76,0.2); }
+
+    .yt-player-wrap {
+      margin-top: 24px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(201,168,76,0.2);
+      background: #000;
+      display: none;
+      aspect-ratio: 16/9;
+    }
+    .yt-player-wrap.visible { display: block; }
+
+    .yt-player-wrap iframe {
+      width: 100%; height: 100%;
+      border: none; display: block;
+    }
+
+    .yt-error {
+      margin-top: 10px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.7rem; letter-spacing: 0.1em;
+      color: #c0666a;
+      text-align: center;
+      display: none;
+    }
+    .yt-error.visible { display: block; }
   </style>
 </head>
 <body>
@@ -269,6 +348,21 @@
     <p class="ftag">Generative &middot; Infinite &middot; Original</p>
   </div>
 </div>
+
+<!-- ── YouTube Player ──────────────────────── -->
+<section class="yt-section">
+  <span class="yt-label">Play a YouTube Video</span>
+  <div class="yt-input-row">
+    <input class="yt-input" id="ytInput" type="text" placeholder="Paste a YouTube link…" />
+    <button class="yt-btn" id="ytPlay">Play</button>
+  </div>
+  <p class="yt-error" id="ytError">Couldn't find a valid YouTube URL — please try again.</p>
+  <div class="yt-player-wrap" id="ytWrap">
+    <iframe id="ytFrame" allowfullscreen
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
+    </iframe>
+  </div>
+</section>
 
 <script>
 // ═══════════════════════════════════════════════════
@@ -642,6 +736,45 @@ document.addEventListener('keydown', e => {
     playBtn.click();
   }
 });
+
+// ═══════════════════════════════════════════════════
+//  YOUTUBE PLAYER
+// ═══════════════════════════════════════════════════
+function extractYouTubeId(url) {
+  const patterns = [
+    /(?:youtube\.com\/watch\?(?:.*&)?v=)([^&#]+)/,
+    /(?:youtu\.be\/)([^?&#]+)/,
+    /(?:youtube\.com\/embed\/)([^?&#]+)/,
+    /(?:youtube\.com\/shorts\/)([^?&#]+)/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+const ytInput = document.getElementById('ytInput');
+const ytPlay  = document.getElementById('ytPlay');
+const ytWrap  = document.getElementById('ytWrap');
+const ytFrame = document.getElementById('ytFrame');
+const ytError = document.getElementById('ytError');
+
+function loadVideo() {
+  const id = extractYouTubeId(ytInput.value.trim());
+  if (!id) {
+    ytError.classList.add('visible');
+    ytWrap.classList.remove('visible');
+    return;
+  }
+  ytError.classList.remove('visible');
+  ytFrame.src = `https://www.youtube.com/embed/${id}?autoplay=1`;
+  ytWrap.classList.add('visible');
+  ytWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+ytPlay.addEventListener('click', loadVideo);
+ytInput.addEventListener('keydown', e => { if (e.key === 'Enter') loadVideo(); });
 </script>
 </body>
 </html>
